@@ -1,0 +1,11 @@
+{
+  "task": "Test task",
+  "chatgpt": {
+    "used_k": 0.0,
+    "max_k": 8.0
+  },
+  "claude": {
+    "used_k": 0.0,
+    "max_k": 80.0
+  }
+}
