@@ -1,0 +1,3 @@
+model: claude-3-sonnet
+max_context_tokens: 80000
+temperature: 0.3
