@@ -1,4 +1,4 @@
 openai
-anthropic
+google-generativeai
 python-dotenv
 pyyaml

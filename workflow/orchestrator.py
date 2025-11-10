@@ -2,7 +2,7 @@ import os
 import json
 from datetime import datetime
 from workflow.chatgpt_stage import run_chatgpt_stage
-from workflow.claude_stage import run_claude_stage
+from workflow.gemini_stage import run_gemini_stage
 
 
 def create_session_id():
@@ -22,11 +22,11 @@ def save_text(filepath, content):
         f.write(content)
 
 
-def save_meta(session_dir, task, chatgpt_usage, claude_usage):
+def save_meta(session_dir, task, chatgpt_usage, gemini_usage):
     meta_data = {
         "task": task,
         "chatgpt": chatgpt_usage,
-        "claude": claude_usage,
+        "gemini": gemini_usage,
     }
     with open(
         os.path.join(session_dir, "meta.json"), "w", encoding="utf-8"
@@ -51,16 +51,16 @@ def run_pipeline(user_task):
         f"{os.path.join(session_dir, '01_raw')}"
     )
 
-    claude_result, claude_usage = run_claude_stage(
+    gemini_result, gemini_usage = run_gemini_stage(
         user_task, session_dir, chatgpt_result
     )
     print(
-        f"Claude: {claude_usage.get('used_k', 0):.1f}k tokens utilizados de "
-        f"{claude_usage.get('max_k', 0):.1f}k tokens"
+        f"Gemini: {gemini_usage.get('used_k', 0):.1f}k tokens utilizados de "
+        f"{gemini_usage.get('max_k', 0):.1f}k tokens"
     )
     print(
-        f"[OK] Etapa 2 (Claude) concluída. Estudo final em "
+        f"[OK] Etapa 2 (Gemini) concluída. Estudo final em "
         f"{os.path.join(session_dir, '03_final', 'estudo_final.md')}"
     )
 
-    save_meta(session_dir, user_task, chatgpt_usage, claude_usage)
+    save_meta(session_dir, user_task, chatgpt_usage, gemini_usage)
