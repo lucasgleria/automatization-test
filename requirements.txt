@@ -2,3 +2,4 @@ openai
 google-generativeai
 python-dotenv
 pyyaml
+importlib-metadata<5.0

@@ -1,8 +1,10 @@
 import os
 import json
 import yaml
+import time
 from dotenv import load_dotenv
 import google.generativeai as genai
+from google.api_core import exceptions
 
 # Load environment variables from .env file
 load_dotenv()
@@ -43,6 +45,7 @@ def run_gemini_stage(user_task, session_dir, chatgpt_result):
     Runs the Gemini stage to analyze collected data and generate the final study.
     """
     print("Running Gemini stage...")
+    max_retries = 3
 
     # 1. Load configuration
     with open("config/gemini_config.yaml", "r", encoding="utf-8") as f:
@@ -53,7 +56,6 @@ def run_gemini_stage(user_task, session_dir, chatgpt_result):
         genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
     except Exception as e:
         print(f"Error configuring Gemini API: {e}")
-        # Return error structure
         return "Error: Could not configure Gemini API.", {
             "model": config.get("model", "unknown"), "used_k": 0, "max_k": 0
         }
@@ -68,7 +70,7 @@ def run_gemini_stage(user_task, session_dir, chatgpt_result):
         load_prompt("prompts/gemini_format.md")
     )
 
-    # 5. Construct the full prompt for the API
+    # 5. Construct the full prompt
     user_prompt_content = (
         f"Here is the research on the topic '{user_task}'. Please generate the final study based on the provided data.\\n\\n"
         f"--- SUMMARY ---\\n{summary}\\n\\n"
@@ -78,7 +80,7 @@ def run_gemini_stage(user_task, session_dir, chatgpt_result):
     for topic, content in notes.items():
         user_prompt_content += f"Topic: {topic}\\n{content}\\n\\n"
 
-    # 6. Initialize the model and call the API
+    # 6. Initialize the model and call the API with retry logic
     model = genai.GenerativeModel(
         model_name=config["model"],
         system_instruction=system_instruction
@@ -87,31 +89,38 @@ def run_gemini_stage(user_task, session_dir, chatgpt_result):
     result = ""
     usage = {}
 
-    try:
-        response = model.generate_content(user_prompt_content)
-        result = response.text
+    for attempt in range(max_retries):
+        try:
+            response = model.generate_content(user_prompt_content)
+            result = response.text
+            usage = {
+                "model": config["model"], "used_k": 0,
+                "max_k": config["max_context_tokens"] / 1000,
+                "used_tokens": 0, "max_context_tokens": config["max_context_tokens"],
+            }
+            break  # Success, exit loop
+        except exceptions.ResourceExhausted as e:
+            print(f"Rate limit exceeded: {e}")
+            retry_after = 60  # Default wait time
+            try:
+                # Try to parse the recommended retry delay
+                if e.retry and hasattr(e.retry, 'delay'):
+                     retry_after = e.retry.delay.total_seconds()
+            except:
+                pass # Use default
 
-        # Note: As of late 2023, Gemini API via this SDK does not return detailed
-        # token counts in the 'response' object itself. This is a known limitation.
-        # We will estimate or leave it as 0 for now.
-        usage = {
-            "model": config["model"],
-            "used_k": 0,  # Placeholder
-            "max_k": config["max_context_tokens"] / 1000,
-            "used_tokens": 0, # Placeholder
-            "max_context_tokens": config["max_context_tokens"],
-        }
-
-    except Exception as e:
-        print(f"An error occurred while calling the Gemini API: {e}")
-        result = "Error: Could not generate the final study from Gemini API."
-        usage = {
-            "model": config.get("model", "unknown"),
-            "used_k": 0,
-            "max_k": config.get("max_context_tokens", 0) / 1000,
-            "used_tokens": 0,
-            "max_context_tokens": config.get("max_context_tokens", 0),
-        }
+            if attempt < max_retries - 1:
+                print(f"Waiting for {retry_after:.2f} seconds before retrying...")
+                time.sleep(retry_after)
+            else:
+                print("Max retries reached. Failing.")
+                result = "Error: Max retries reached due to rate limiting."
+                usage = {"model": config.get("model", "unknown"), "used_k": 0, "max_k": 0}
+        except Exception as e:
+            print(f"An unexpected error occurred while calling the Gemini API: {e}")
+            result = "Error: Could not generate the final study from Gemini API."
+            usage = {"model": config.get("model", "unknown"), "used_k": 0, "max_k": 0}
+            break
 
     # 7. Save the final study
     final_dir = os.path.join(session_dir, "03_final")
