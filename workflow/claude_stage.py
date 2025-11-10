@@ -12,7 +12,7 @@ def run_claude_stage(user_task, session_dir, chatgpt_result):
 
     # Create placeholder file
     final_dir = os.path.join(session_dir, "03_final")
-    with open(os.path.join(final_dir, "estudo_final.md"), "w") as f:
+    with open(os.path.join(final_dir, "estudo_final.md"), "w", encoding="utf-8") as f:
         f.write(result)
 
     return result, usage
